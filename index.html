@@ -265,6 +265,13 @@
     .detail-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
     .detail-grid .box { background: #f8f2ea; border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
     .detail-grid .value { font-size: 24px; font-weight: 800; }
+    .compensatory-panel { margin-top: 14px; background: linear-gradient(135deg, rgba(22,63,118,.08), rgba(31,110,74,.08), rgba(184,134,20,.10)); }
+    .compensatory-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin-top:14px; }
+    .compensatory-box { background:#fff; border:1px solid var(--line); border-radius:16px; padding:14px; text-align:center; }
+    .compensatory-box .value { display:block; font-size:22px; font-weight:800; color:var(--accent); }
+    .compensatory-box .label { display:block; margin-top:4px; color:var(--muted); font-size:12px; }
+    .balance-positive { color:#1f6e4a !important; }
+    .balance-negative { color:#a33b3b !important; }
     .detail-list { max-height: 520px; overflow:auto; }
     .pill {
       display: inline-flex;
@@ -479,6 +486,25 @@
         <div class="box"><div class="value" id="monthlyAllHours">0h 0m</div><div class="label">Tiempo total de todos en el mes</div></div>
         <div class="box"><div class="value" id="monthlyAllExits">0</div><div class="label">Salidas totales del mes</div></div>
       </div>
+      <div class="card compensatory-panel">
+        <h3 style="margin:0 0 8px;">Horas compensatorias</h3>
+        <p class="hint" style="margin:0 0 10px;">Ingresa las horas que tiene disponibles el funcionario. Se descontarán del tiempo utilizado en sus salidas del mes seleccionado.</p>
+        <div class="row">
+          <div>
+            <label for="compensatoryHours">Horas compensatorias</label>
+            <input id="compensatoryHours" type="number" min="0" step="0.25" value="0" />
+          </div>
+          <div style="align-self:end;">
+            <button type="button" id="saveCompensatoryBtn">Guardar horas compensatorias</button>
+          </div>
+        </div>
+        <div id="compensatoryStatus" class="status"></div>
+        <div class="compensatory-grid">
+          <div class="compensatory-box"><span class="value" id="compensatoryTotal">0 h 0 min</span><span class="label">Horas disponibles</span></div>
+          <div class="compensatory-box"><span class="value" id="usedExitTime">0 h 0 min</span><span class="label">Usadas en salidas</span></div>
+          <div class="compensatory-box"><span class="value balance-positive" id="compensatoryBalance">+0 h 0 min</span><span class="label" id="compensatoryBalanceLabel">Saldo disponible</span></div>
+        </div>
+      </div>
       <div class="detail-list">
         <table>
           <thead>
@@ -578,6 +604,14 @@
     const searchMonthlyBtn = document.getElementById('searchMonthlyBtn');
     const downloadReportBtn = document.getElementById('downloadReportBtn');
     const monthlyDetailBody = document.getElementById('monthlyDetailBody');
+    const compensatoryHours = document.getElementById('compensatoryHours');
+    const saveCompensatoryBtn = document.getElementById('saveCompensatoryBtn');
+    const compensatoryStatus = document.getElementById('compensatoryStatus');
+    const compensatoryTotal = document.getElementById('compensatoryTotal');
+    const usedExitTime = document.getElementById('usedExitTime');
+    const compensatoryBalance = document.getElementById('compensatoryBalance');
+    const compensatoryBalanceLabel = document.getElementById('compensatoryBalanceLabel');
+    const COMPENSATORY_LOCAL_KEY = 'registro-funcionarios-horas-compensatorias-v1';
     const detailMode = document.getElementById('detailMode');
     const detailValue = document.getElementById('detailValue');
     const detailBody = document.getElementById('detailBody');
@@ -749,6 +783,60 @@
       monthlyAllExits.textContent = String(data.totalExits || 0);
     }
 
+    function formatMinutesLabel(value, signed = false) {
+      const minutes = Math.round(Number(value) || 0);
+      const sign = signed && minutes >= 0 ? '+' : (minutes < 0 ? '-' : '');
+      const absolute = Math.abs(minutes);
+      return `${sign}${Math.floor(absolute / 60)} h ${absolute % 60} min`;
+    }
+
+    function renderCompensatoryBalance(hours, usedMinutes) {
+      const availableMinutes = Math.round((Number(hours) || 0) * 60);
+      const used = Math.max(0, Math.round(Number(usedMinutes) || 0));
+      const balance = availableMinutes - used;
+      compensatoryHours.value = Number(hours) || 0;
+      compensatoryTotal.textContent = formatMinutesLabel(availableMinutes);
+      usedExitTime.textContent = formatMinutesLabel(used);
+      compensatoryBalance.textContent = formatMinutesLabel(balance, true);
+      compensatoryBalance.classList.toggle('balance-positive', balance >= 0);
+      compensatoryBalance.classList.toggle('balance-negative', balance < 0);
+      compensatoryBalanceLabel.textContent = balance < 0 ? 'Debe tiempo' : 'Saldo disponible';
+    }
+
+    function loadCompensatoryBalance(name, usedMinutes) {
+      callBackend('getCompensatoryHours', [name], hours => {
+        compensatoryStatus.textContent = '';
+        renderCompensatoryBalance(hours, usedMinutes);
+      }, err => {
+        const saved = JSON.parse(localStorage.getItem(COMPENSATORY_LOCAL_KEY) || '{}');
+        const hours = Number(saved[name] || 0);
+        compensatoryStatus.textContent = hours ? 'Mostrando el saldo guardado en este navegador.' : '';
+        compensatoryStatus.style.color = 'var(--muted)';
+        renderCompensatoryBalance(hours, usedMinutes);
+      });
+    }
+
+    function saveCompensatoryBalance() {
+      const name = monthlyEmployee.value.trim();
+      if (!name) return setStatus('Selecciona un funcionario para guardar sus horas compensatorias.');
+      const hours = Math.max(0, Number(compensatoryHours.value) || 0);
+      saveCompensatoryBtn.disabled = true;
+      callBackend('saveCompensatoryHours', [name, hours], result => {
+        saveCompensatoryBtn.disabled = false;
+        compensatoryStatus.textContent = result.message || 'Horas compensatorias guardadas.';
+        compensatoryStatus.style.color = 'var(--accent-3)';
+        loadMonthlyDetail();
+      }, err => {
+        saveCompensatoryBtn.disabled = false;
+        const saved = JSON.parse(localStorage.getItem(COMPENSATORY_LOCAL_KEY) || '{}');
+        if (hours) saved[name] = hours; else delete saved[name];
+        localStorage.setItem(COMPENSATORY_LOCAL_KEY, JSON.stringify(saved));
+        compensatoryStatus.textContent = 'Guardado en este navegador. Para compartirlo entre computadores hay que actualizar Apps Script.';
+        compensatoryStatus.style.color = 'var(--accent-2)';
+        loadMonthlyDetail();
+      });
+    }
+
     function renderTimeRanking(result) {
       const data = result || { totalHours: '0h 0m', totalExits: 0, ranking: [] };
       timeAllHours.textContent = data.totalHours || '0h 0m';
@@ -846,7 +934,8 @@
       }
       const callbackName = `sheetsCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       const query = new URLSearchParams({ action, callback: callbackName });
-      const keys = action === 'getEmployees' ? [] : action === 'addEmployee' ? ['name'] : action === 'savePairedRecord'
+      const keys = action === 'getEmployees' ? [] : action === 'addEmployee' ? ['name'] : action === 'getCompensatoryHours'
+        ? ['funcionario'] : action === 'saveCompensatoryHours' ? ['funcionario', 'hours'] : action === 'savePairedRecord'
         ? ['funcionario', 'fecha', 'salidaHora', 'regresoHora', 'motivo'] : action === 'getMonthlyRanking' ? ['value'] : ['funcionario', 'mode', 'value'];
       (params || []).forEach((value, index) => query.set(keys[index], value ?? ''));
       const script = document.createElement('script');
@@ -996,6 +1085,7 @@
               detailExits.textContent = String(local.summary.exits);
               detailReturns.textContent = String(local.summary.returns);
               detailHours.textContent = local.summary.totalHours;
+              loadCompensatoryBalance(name, local.summary.totalMinutes);
               monthlyDetailBody.innerHTML = local.items.length ? renderPairedRows(local.items) : '<tr><td colspan="5">No hay registros para este período.</td></tr>';
             }, () => {});
           }
@@ -1005,6 +1095,7 @@
           detailExits.textContent = String(s.exits || 0);
           detailReturns.textContent = String(s.returns || 0);
           detailHours.textContent = s.totalHours || '0h 0m';
+          loadCompensatoryBalance(name, s.totalMinutes || 0);
           const items = res.items || [];
           if (!items.length) {
             monthlyDetailBody.innerHTML = '<tr><td colspan="5">No hay registros para este período.</td></tr>';
@@ -1019,6 +1110,7 @@
           detailExits.textContent = String(res.summary.exits);
           detailReturns.textContent = String(res.summary.returns);
           detailHours.textContent = res.summary.totalHours;
+          loadCompensatoryBalance(name, res.summary.totalMinutes);
            monthlyDetailBody.innerHTML = res.items.length ? renderPairedRows(res.items) : '<tr><td colspan="5">No hay registros para este período.</td></tr>';
         }, () => { setMonthlySearching(false); setStatus(err.message || String(err)); }));
     }
@@ -1028,6 +1120,7 @@
       loadMonthlyDetail();
     });
     downloadReportBtn.addEventListener('click', downloadReport);
+    saveCompensatoryBtn.addEventListener('click', saveCompensatoryBalance);
     backMonthlyBtn.addEventListener('click', () => showScreen(mainScreen));
     backTimeBtn.addEventListener('click', () => showScreen(mainScreen));
     backBtn.addEventListener('click', () => showScreen(mainScreen));

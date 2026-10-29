@@ -1,6 +1,7 @@
 const SPREADSHEET_ID = '1_A8FyTO3u1L1Pn9l6YGCGS0MIPHIrjCO2LiKZgBtj3U';
 const SHEET_NAME = 'Registros';
 const EMPLOYEE_SHEET = 'Funcionarios';
+const COMPENSATORY_SHEET = 'Horas compensatorias';
 const LEGACY_CSV_URL = 'https://raw.githubusercontent.com/escuelaoriente/registro-diario-funcionarios/main/historico-excel.csv';
 const LEGACY_RECORDS_CSV_URL = 'https://raw.githubusercontent.com/willfret/registro-diario-funcionarios/main/legacy-records.csv';
 
@@ -19,6 +20,8 @@ function apiResponse_(request) {
   let data;
   if (action === 'getEmployees') data = getEmployees();
   else if (action === 'addEmployee') data = addEmployee(p.name);
+  else if (action === 'getCompensatoryHours') data = getCompensatoryHours(p.funcionario);
+  else if (action === 'saveCompensatoryHours') data = saveCompensatoryHours(p.funcionario, p.hours);
   else if (action === 'savePairedRecord') data = savePairedRecord({
     funcionario: p.funcionario,
     fecha: p.fecha,
@@ -47,6 +50,8 @@ function setup() {
   if (!employeeSheet) {
     employeeSheet = ss.insertSheet(EMPLOYEE_SHEET);
   }
+  let compensatorySheet = ss.getSheetByName(COMPENSATORY_SHEET);
+  if (!compensatorySheet) compensatorySheet = ss.insertSheet(COMPENSATORY_SHEET);
   const headers = ['Timestamp', 'Fecha', 'Hora', 'Funcionario', 'Tipo', 'Motivo', 'Usuario'];
   sheet.clear();
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
@@ -54,6 +59,10 @@ function setup() {
   sheet.autoResizeColumns(1, headers.length);
   if (employeeSheet.getLastRow() === 0) {
     employeeSheet.getRange(1, 1).setValue('Nombre');
+  }
+  if (compensatorySheet.getLastRow() === 0) {
+    compensatorySheet.getRange(1, 1, 1, 3).setValues([['Funcionario', 'Horas compensatorias', 'Actualizado']]);
+    compensatorySheet.setFrozenRows(1);
   }
   return { ok: true, message: 'Hoja Registros creada o reiniciada.' };
 }
@@ -155,7 +164,13 @@ function ensureDatabase_() {
   let employeeSheet = ss.getSheetByName(EMPLOYEE_SHEET);
   if (!employeeSheet) employeeSheet = ss.insertSheet(EMPLOYEE_SHEET);
   if (employeeSheet.getLastRow() === 0) employeeSheet.getRange(1, 1).setValue('Nombre');
-  return { ss, sheet, employeeSheet };
+  let compensatorySheet = ss.getSheetByName(COMPENSATORY_SHEET);
+  if (!compensatorySheet) compensatorySheet = ss.insertSheet(COMPENSATORY_SHEET);
+  if (compensatorySheet.getLastRow() === 0) {
+    compensatorySheet.getRange(1, 1, 1, 3).setValues([['Funcionario', 'Horas compensatorias', 'Actualizado']]);
+    compensatorySheet.setFrozenRows(1);
+  }
+  return { ss, sheet, employeeSheet, compensatorySheet };
 }
 
 function getEmployees() {
@@ -201,6 +216,32 @@ function addEmployee(name) {
 
   sheet.appendRow([clean]);
   return { ok: true, message: 'Funcionario agregado correctamente.' };
+}
+
+function getCompensatoryHours(funcionario) {
+  const name = String(funcionario || '').trim().toLowerCase();
+  if (!name) return 0;
+  const { compensatorySheet } = ensureDatabase_();
+  if (compensatorySheet.getLastRow() < 2) return 0;
+  const rows = compensatorySheet.getRange(2, 1, compensatorySheet.getLastRow() - 1, 2).getValues();
+  const row = rows.find(item => String(item[0] || '').trim().toLowerCase() === name);
+  return row ? Math.max(0, Number(row[1]) || 0) : 0;
+}
+
+function saveCompensatoryHours(funcionario, hours) {
+  const cleanName = String(funcionario || '').trim();
+  if (!cleanName) throw new Error('Selecciona un funcionario.');
+  const amount = Math.max(0, Number(String(hours || '').replace(',', '.')) || 0);
+  const { compensatorySheet } = ensureDatabase_();
+  const lastRow = compensatorySheet.getLastRow();
+  const rows = lastRow >= 2
+    ? compensatorySheet.getRange(2, 1, lastRow - 1, 1).getValues().flat()
+    : [];
+  const index = rows.findIndex(item => String(item || '').trim().toLowerCase() === cleanName.toLowerCase());
+  const values = [cleanName, amount, new Date()];
+  if (index >= 0) compensatorySheet.getRange(index + 2, 1, 1, 3).setValues([values]);
+  else compensatorySheet.appendRow(values);
+  return { ok: true, hours: amount, message: 'Horas compensatorias guardadas correctamente.' };
 }
 
 function saveRecord(payload) {
