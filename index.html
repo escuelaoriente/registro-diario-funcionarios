@@ -90,6 +90,15 @@
       background: #1f6e4a;
       box-shadow: 0 0 0 4px rgba(31,110,74,.16);
     }
+    .db-indicator.disconnected {
+      background: rgba(105,118,130,.12);
+      color: #66717b;
+      border-color: rgba(105,118,130,.2);
+    }
+    .db-indicator.disconnected .db-dot {
+      background: #9aa5ae;
+      box-shadow: none;
+    }
     .banner {
       display: flex;
       gap: 10px;
@@ -144,14 +153,9 @@
     th, td { text-align:left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
     th { font-size: 13px; text-transform: uppercase; letter-spacing:.04em; color: var(--accent); }
     .status { margin-top: 12px; font-weight: 700; color: var(--accent-3); }
+    .toast { display:none; margin-top:14px; padding:12px 16px; border:1px solid rgba(31,110,74,.3); border-radius:12px; background:#e9f7ef; color:#17613e; font-weight:800; text-align:center; }
+    .toast.show { display:block; }
     .hint { color: var(--muted); font-size: 14px; line-height: 1.5; }
-    .balance-panel { margin-top: 14px; background: linear-gradient(135deg, rgba(22,63,118,.08), rgba(31,110,74,.08), rgba(184,134,20,.10)); }
-    .balance-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:14px; }
-    .balance-box { padding:12px; border-radius:14px; background:white; border:1px solid var(--line); text-align:center; }
-    .balance-box .value { display:block; font-size:22px; font-weight:800; color:var(--accent); }
-    .balance-box .label { display:block; margin-top:4px; color:var(--muted); font-size:12px; }
-    .balance-positive { color:#1f6e4a !important; }
-    .balance-negative { color:#a33b3b !important; }
     .quickbar {
       display: grid;
       grid-template-columns: 1.3fr .8fr .8fr .8fr;
@@ -261,6 +265,13 @@
     .detail-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
     .detail-grid .box { background: #f8f2ea; border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
     .detail-grid .value { font-size: 24px; font-weight: 800; }
+    .compensatory-panel { margin-top: 14px; background: linear-gradient(135deg, rgba(22,63,118,.08), rgba(31,110,74,.08), rgba(184,134,20,.10)); }
+    .compensatory-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin-top:14px; }
+    .compensatory-box { background:#fff; border:1px solid var(--line); border-radius:16px; padding:14px; text-align:center; }
+    .compensatory-box .value { display:block; font-size:22px; font-weight:800; color:var(--accent); }
+    .compensatory-box .label { display:block; margin-top:4px; color:var(--muted); font-size:12px; }
+    .balance-positive { color:#1f6e4a !important; }
+    .balance-negative { color:#a33b3b !important; }
     .detail-list { max-height: 520px; overflow:auto; }
     .pill {
       display: inline-flex;
@@ -344,7 +355,7 @@
         <p>Registro de salidas diarias funcionarios</p>
       </div>
       <div class="topbar-actions">
-        <span class="db-indicator" id="dbIndicator"><span class="db-dot"></span>Conectado con Google Sheets</span>
+        <span class="db-indicator disconnected" id="dbIndicator"><span class="db-dot"></span>Sin conexión</span>
         <button type="button" class="secondary" id="logoutBtn">Cerrar sesión</button>
       </div>
     </section>
@@ -353,6 +364,7 @@
       <button type="button" class="secondary" id="goMainBtn">Registro rápido</button>
       <button type="button" class="secondary" id="goAddBtn">Agregar nuevo funcionario</button>
       <button type="button" class="secondary" id="goMonthlyBtn">Registro mensuales</button>
+      <button type="button" class="secondary" id="goTimeBtn">Tiempo de funcionarios</button>
     </nav>
 
     <section class="card screen active" id="mainScreen" style="margin-top:18px;">
@@ -389,7 +401,39 @@
         </div>
 
         <div class="status" id="status"></div>
+        <div class="toast" id="successToast" role="status" aria-live="polite">Registro guardado exitosamente</div>
       </form>
+    </section>
+
+    <section class="card screen" id="timeScreen" style="margin-top:18px;">
+      <div class="detail-hero">
+        <div>
+          <h2 style="margin:0;">Tiempo de funcionarios</h2>
+          <p class="hint" style="margin:4px 0 0;">Listado ordenado desde el mayor tiempo fuera hasta el menor.</p>
+        </div>
+        <div class="actions" style="margin:0;">
+          <button type="button" class="secondary" id="backTimeBtn">Volver</button>
+        </div>
+      </div>
+      <div class="row" style="margin:18px 0 14px;">
+        <div>
+          <label for="timeMonth">Mes</label>
+          <input id="timeMonth" type="month" />
+        </div>
+        <div style="align-self:end;">
+          <button type="button" id="searchTimeBtn">Mostrar funcionarios</button>
+        </div>
+      </div>
+      <div class="detail-grid">
+        <div class="box"><div class="value" id="timeAllHours">0h 0m</div><div class="label">Tiempo total del mes</div></div>
+        <div class="box"><div class="value" id="timeAllExits">0</div><div class="label">Salidas del mes</div></div>
+      </div>
+      <div class="detail-list" style="margin-top:14px;">
+        <table>
+          <thead><tr><th>#</th><th>Funcionario</th><th>Salidas</th><th>Tiempo fuera</th></tr></thead>
+          <tbody id="timeRankingBody"><tr><td colspan="4">Selecciona un mes y presiona “Mostrar funcionarios”.</td></tr></tbody>
+        </table>
+      </div>
     </section>
 
     <section class="card screen active" id="addEmployeeScreen" style="margin-top:18px;">
@@ -425,29 +469,12 @@
         <div>
           <label for="monthlyValue">Mes</label>
           <input id="monthlyValue" type="month" />
+          <div class="hint">Selecciona un mes. El histórico del Excel contiene marzo, abril y mayo de 2026.</div>
         </div>
       </div>
       <div class="actions" style="margin-top:0;">
         <button type="button" id="searchMonthlyBtn">Buscar registro mensual</button>
-      </div>
-      <div class="card balance-panel">
-        <h3 style="margin:0 0 8px;">Horas adeudadas y saldo</h3>
-        <p class="hint" style="margin:0 0 10px;">Ingresa las horas que se le deben al funcionario. Se descontarán automáticamente de sus horas utilizadas en salidas.</p>
-        <div class="row">
-          <div>
-            <label for="debtHours">Horas que se le deben</label>
-            <input id="debtHours" type="number" min="0" step="0.25" value="0" />
-          </div>
-          <div style="align-self:end;">
-            <button type="button" id="saveDebtBtn">Guardar horas adeudadas</button>
-          </div>
-        </div>
-        <div id="debtStatus" class="status"></div>
-        <div class="balance-grid">
-          <div class="balance-box"><span class="value" id="debtTotal">0,00 h</span><span class="label">Horas adeudadas</span></div>
-          <div class="balance-box"><span class="value" id="usedExitHours">0,00 h</span><span class="label">Horas usadas en salidas</span></div>
-          <div class="balance-box"><span class="value" id="remainingBalance">+0,00 h</span><span class="label">Saldo</span></div>
-        </div>
+        <button type="button" class="secondary" id="downloadReportBtn" disabled>Descargar reporte</button>
       </div>
       <div class="detail-grid" style="margin-top:14px;">
         <div class="box"><div class="value" id="detailEntries">0</div><div class="label">Entradas</div></div>
@@ -455,18 +482,41 @@
         <div class="box"><div class="value" id="detailReturns">0</div><div class="label">Regresos</div></div>
         <div class="box"><div class="value" id="detailHours">0h 0m</div><div class="label">Tiempo fuera</div></div>
       </div>
+      <div class="detail-grid" style="margin-top:14px;">
+        <div class="box"><div class="value" id="monthlyAllHours">0h 0m</div><div class="label">Tiempo total de todos en el mes</div></div>
+        <div class="box"><div class="value" id="monthlyAllExits">0</div><div class="label">Salidas totales del mes</div></div>
+      </div>
+      <div class="card compensatory-panel">
+        <h3 style="margin:0 0 8px;">Horas compensatorias</h3>
+        <p class="hint" style="margin:0 0 10px;">Ingresa las horas que tiene disponibles el funcionario. Se descontarán del tiempo utilizado en sus salidas del mes seleccionado.</p>
+        <div class="row">
+          <div>
+            <label for="compensatoryHours">Horas compensatorias</label>
+            <input id="compensatoryHours" type="number" min="0" step="0.25" value="0" />
+          </div>
+          <div style="align-self:end;">
+            <button type="button" id="saveCompensatoryBtn">Guardar horas compensatorias</button>
+          </div>
+        </div>
+        <div id="compensatoryStatus" class="status"></div>
+        <div class="compensatory-grid">
+          <div class="compensatory-box"><span class="value" id="compensatoryTotal">0 h 0 min</span><span class="label">Horas disponibles</span></div>
+          <div class="compensatory-box"><span class="value" id="usedExitTime">0 h 0 min</span><span class="label">Usadas en salidas</span></div>
+          <div class="compensatory-box"><span class="value balance-positive" id="compensatoryBalance">+0 h 0 min</span><span class="label" id="compensatoryBalanceLabel">Saldo disponible</span></div>
+        </div>
+      </div>
       <div class="detail-list">
         <table>
           <thead>
             <tr>
               <th>Fecha</th>
-              <th>Hora</th>
-              <th>Tipo</th>
+              <th>Hora salida</th>
+              <th>Hora regreso</th>
               <th>Motivo</th>
             </tr>
           </thead>
           <tbody id="monthlyDetailBody">
-            <tr><td colspan="4">Busca un funcionario para ver su registro mensual.</td></tr>
+            <tr><td colspan="5">Busca un funcionario para ver su registro mensual.</td></tr>
           </tbody>
         </table>
       </div>
@@ -506,13 +556,13 @@
           <thead>
             <tr>
               <th>Fecha</th>
-              <th>Hora</th>
-              <th>Tipo</th>
+              <th>Hora salida</th>
+              <th>Hora regreso</th>
               <th>Motivo</th>
             </tr>
           </thead>
           <tbody id="detailBody">
-            <tr><td colspan="4">Busca un funcionario para ver su detalle.</td></tr>
+            <tr><td colspan="5">Busca un funcionario para ver su detalle.</td></tr>
           </tbody>
         </table>
       </div>
@@ -539,24 +589,29 @@
     const goMainBtn = document.getElementById('goMainBtn');
     const goAddBtn = document.getElementById('goAddBtn');
     const goMonthlyBtn = document.getElementById('goMonthlyBtn');
+    const goTimeBtn = document.getElementById('goTimeBtn');
     const logoutBtn = document.getElementById('logoutBtn');
     const fecha = document.getElementById('fecha');
     const salidaHora = document.getElementById('salidaHora');
     const entradaHora = document.getElementById('entradaHora');
     const statusEl = document.getElementById('status');
+    const successToast = document.getElementById('successToast');
     const newEmployee = document.getElementById('newEmployee');
     const addEmployeeBtn = document.getElementById('addEmployeeBtn');
     const monthlyEmployee = document.getElementById('monthlyEmployee');
     const employeeListMonthly = document.getElementById('employeeListMonthly');
     const monthlyValue = document.getElementById('monthlyValue');
     const searchMonthlyBtn = document.getElementById('searchMonthlyBtn');
+    const downloadReportBtn = document.getElementById('downloadReportBtn');
     const monthlyDetailBody = document.getElementById('monthlyDetailBody');
-    const debtHours = document.getElementById('debtHours');
-    const saveDebtBtn = document.getElementById('saveDebtBtn');
-    const debtStatus = document.getElementById('debtStatus');
-    const debtTotal = document.getElementById('debtTotal');
-    const usedExitHours = document.getElementById('usedExitHours');
-    const remainingBalance = document.getElementById('remainingBalance');
+    const compensatoryHours = document.getElementById('compensatoryHours');
+    const saveCompensatoryBtn = document.getElementById('saveCompensatoryBtn');
+    const compensatoryStatus = document.getElementById('compensatoryStatus');
+    const compensatoryTotal = document.getElementById('compensatoryTotal');
+    const usedExitTime = document.getElementById('usedExitTime');
+    const compensatoryBalance = document.getElementById('compensatoryBalance');
+    const compensatoryBalanceLabel = document.getElementById('compensatoryBalanceLabel');
+    const COMPENSATORY_LOCAL_KEY = 'registro-funcionarios-horas-compensatorias-v1';
     const detailMode = document.getElementById('detailMode');
     const detailValue = document.getElementById('detailValue');
     const detailBody = document.getElementById('detailBody');
@@ -566,15 +621,26 @@
     const detailExits = document.getElementById('detailExits');
     const detailReturns = document.getElementById('detailReturns');
     const detailHours = document.getElementById('detailHours');
+    const monthlyAllHours = document.getElementById('monthlyAllHours');
+    const monthlyAllExits = document.getElementById('monthlyAllExits');
+    const timeScreen = document.getElementById('timeScreen');
+    const timeMonth = document.getElementById('timeMonth');
+    const searchTimeBtn = document.getElementById('searchTimeBtn');
+    const timeAllHours = document.getElementById('timeAllHours');
+    const timeAllExits = document.getElementById('timeAllExits');
+    const timeRankingBody = document.getElementById('timeRankingBody');
+    const backTimeBtn = document.getElementById('backTimeBtn');
     const backBtn = document.getElementById('backBtn');
     const backMonthlyBtn = document.getElementById('backMonthlyBtn');
-    const runDetailBtn = document.getElementById('runDetailBtn');
+    let currentMonthlyReport = null;
 
     const today = new Date();
-    const AUTH_EMAIL = 'alejandra.rodriguez@escuelaoriente.cl';
-    const AUTH_PASSWORD = 'oriente22380';
-    const DEBT_KEY = 'registro-funcionarios-horas-adeudadas-v1';
-    const employeeDebts = JSON.parse(localStorage.getItem(DEBT_KEY) || '{}');
+    const AUTH_USERS = [
+      { email: 'alejandra.rodriguez@escuelaoriente.cl', password: 'oriente22380' },
+      { email: 'nuvia.aguero@escuelaoriente.cl', password: 'oriente2026' }
+    ];
+    // Pega aquí la URL de implementación de Apps Script para conectar GitHub con Sheets.
+    const GOOGLE_SHEETS_API_URL = 'https://script.google.com/macros/s/AKfycbzMtP1ef3KgYMFYB0mMqqmbXl3NtukWwjrhmJy8MlfT_pfSjwS4SoBkDZWlT9YCT35o/exec';
     function getRememberedEmail() {
       return localStorage.getItem('nec_remembered_email') || '';
     }
@@ -609,7 +675,7 @@
     function attemptLogin() {
       const email = loginEmail.value.trim().toLowerCase();
       const password = loginPassword.value;
-      if (email === AUTH_EMAIL && password === AUTH_PASSWORD) {
+      if (AUTH_USERS.some(user => user.email === email && user.password === password)) {
         setLoggedIn(true);
         if (rememberCheck.checked) {
           localStorage.setItem('nec_remembered_email', loginEmail.value.trim());
@@ -630,46 +696,261 @@
 
     function setStatus(msg) { statusEl.textContent = msg; }
 
-    function formatHours(value, signed = false) {
-      const amount = Number(value) || 0;
-      const prefix = signed ? (amount >= 0 ? '+' : '') : '';
-      return prefix + amount.toFixed(2).replace('.', ',') + ' h';
+    function showSuccess(message) {
+      successToast.textContent = message;
+      successToast.classList.add('show');
+      window.clearTimeout(showSuccess.timer);
+      showSuccess.timer = window.setTimeout(() => successToast.classList.remove('show'), 3500);
     }
 
-    function parseHours(value) {
-      const text = String(value || '');
-      const hourMinuteMatch = text.match(/(-?\d+)\s*h\s*(\d+)\s*m/i);
-      if (hourMinuteMatch) return Number(hourMinuteMatch[1]) + Number(hourMinuteMatch[2]) / 60;
-      const hoursMatch = text.match(/(-?\d+(?:[.,]\d+)?)\s*h/i);
-      if (hoursMatch) return Number(hoursMatch[1].replace(',', '.')) || 0;
-      return 0;
+    let localRecords = null;
+
+    function loadLocalRecords(done, failed) {
+      if (localRecords) return done(localRecords);
+      fetch('registros-sincronizados.csv?v=1')
+        .then(response => {
+          if (!response.ok) throw new Error('No se pudo leer el respaldo histórico.');
+          return response.text();
+        })
+        .then(text => {
+          const parseCsvLine = line => {
+            const fields = [];
+            line.replace(/("(?:[^"]|"")*"|[^,]*)(?:,|$)/g, (_, value) => {
+              fields.push(value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1).replace(/""/g, '"') : value);
+              return '';
+            });
+            return fields;
+          };
+          localRecords = text.split(/\r?\n/).slice(1).filter(Boolean).map(line => {
+            const [fecha, hora, funcionario, tipo, motivo, usuario] = parseCsvLine(line);
+            return { fecha, hora, funcionario, tipo, motivo, usuario };
+          });
+          done(localRecords);
+        })
+        .catch(failed || (() => {}));
     }
 
-    function getEmployeeDebt(name) {
-      return Math.max(0, Number(employeeDebts[String(name || '').trim()] || 0));
+    function localEmployeeDetail(name, mode, value) {
+      const target = String(name || '').trim().toLowerCase();
+      const rows = (localRecords || []).filter(row => {
+        const sameName = String(row.funcionario || '').toLowerCase().includes(target);
+        const samePeriod = mode === 'day' ? row.fecha === value : String(row.fecha || '').startsWith(value);
+        return sameName && samePeriod;
+      }).sort((a, b) => `${a.fecha} ${a.hora}`.localeCompare(`${b.fecha} ${b.hora}`));
+      let exits = 0, returns = 0, entries = 0, totalMinutes = 0, lastExit = null;
+      rows.forEach(row => {
+        const parts = String(row.hora || '').split(':');
+        const minutes = Number(parts[0]) * 60 + Number(parts[1]);
+        const type = String(row.tipo || '').toLowerCase();
+        if (type === 'entrada') entries += 1;
+        if (type === 'salida' || type === 'salida final') { exits += 1; lastExit = minutes; }
+        if (type === 'regreso') { returns += 1; if (lastExit !== null) { totalMinutes += Math.max(0, minutes - lastExit); lastExit = null; } }
+      });
+      return { items: rows, summary: { entries, exits, returns, totalMinutes, totalHours: `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m` } };
     }
 
-    function renderDebtBalance(name, usedHours = 0) {
-      const debt = getEmployeeDebt(name);
-      const used = Math.max(0, Number(usedHours) || 0);
-      const balance = debt - used;
-      debtHours.value = debt;
-      debtTotal.textContent = formatHours(debt);
-      usedExitHours.textContent = formatHours(used);
-      remainingBalance.textContent = formatHours(balance, true);
-      remainingBalance.classList.toggle('balance-positive', balance >= 0);
-      remainingBalance.classList.toggle('balance-negative', balance < 0);
+    function latestLocalMonth() {
+      return [...new Set((localRecords || []).map(row => String(row.fecha || '').slice(0, 7)).filter(Boolean))].sort().pop() || '';
     }
 
-    function saveEmployeeDebt() {
+    function localMonthlyRanking(month) {
+      const groups = {};
+      (localRecords || []).filter(row => String(row.fecha || '').startsWith(month)).forEach(row => {
+        const name = String(row.funcionario || '').trim();
+        if (!name) return;
+        if (!groups[name]) groups[name] = [];
+        groups[name].push(row);
+      });
+      const ranking = Object.keys(groups).map(name => {
+        const rows = groups[name].sort((a, b) => `${a.fecha} ${a.hora}`.localeCompare(`${b.fecha} ${b.hora}`));
+        let totalMinutes = 0, exits = 0, lastExit = null, lastDate = '';
+        rows.forEach(row => {
+          if (row.fecha !== lastDate) { lastExit = null; lastDate = row.fecha; }
+          const parts = String(row.hora || '').split(':');
+          const minutes = Number(parts[0]) * 60 + Number(parts[1]);
+          const type = String(row.tipo || '').toLowerCase();
+          if (type === 'salida' || type === 'salida final') { exits += 1; lastExit = minutes; }
+          else if (type === 'regreso' && lastExit !== null) { totalMinutes += Math.max(0, minutes - lastExit); lastExit = null; }
+        });
+        return { funcionario: name, exits, totalMinutes, totalHours: `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m` };
+      }).sort((a, b) => b.totalMinutes - a.totalMinutes || b.exits - a.exits || a.funcionario.localeCompare(b.funcionario));
+      return { totalMinutes: ranking.reduce((sum, item) => sum + item.totalMinutes, 0), totalHours: `${Math.floor(ranking.reduce((sum, item) => sum + item.totalMinutes, 0) / 60)}h ${ranking.reduce((sum, item) => sum + item.totalMinutes, 0) % 60}m`, totalExits: ranking.reduce((sum, item) => sum + item.exits, 0), ranking };
+    }
+
+    function renderMonthlyTotals(result) {
+      const data = result || { totalHours: '0h 0m', totalExits: 0 };
+      monthlyAllHours.textContent = data.totalHours || '0h 0m';
+      monthlyAllExits.textContent = String(data.totalExits || 0);
+    }
+
+    function formatMinutesLabel(value, signed = false) {
+      const minutes = Math.round(Number(value) || 0);
+      const sign = signed && minutes >= 0 ? '+' : (minutes < 0 ? '-' : '');
+      const absolute = Math.abs(minutes);
+      return `${sign}${Math.floor(absolute / 60)} h ${absolute % 60} min`;
+    }
+
+    function renderCompensatoryBalance(hours, usedMinutes) {
+      const availableMinutes = Math.round((Number(hours) || 0) * 60);
+      const used = Math.max(0, Math.round(Number(usedMinutes) || 0));
+      const balance = availableMinutes - used;
+      compensatoryHours.value = Number(hours) || 0;
+      compensatoryTotal.textContent = formatMinutesLabel(availableMinutes);
+      usedExitTime.textContent = formatMinutesLabel(used);
+      compensatoryBalance.textContent = formatMinutesLabel(balance, true);
+      compensatoryBalance.classList.toggle('balance-positive', balance >= 0);
+      compensatoryBalance.classList.toggle('balance-negative', balance < 0);
+      compensatoryBalanceLabel.textContent = balance < 0 ? 'Debe tiempo' : 'Saldo disponible';
+    }
+
+    function loadCompensatoryBalance(name, usedMinutes) {
+      callBackend('getCompensatoryHours', [name], hours => {
+        compensatoryStatus.textContent = '';
+        renderCompensatoryBalance(hours, usedMinutes);
+      }, err => {
+        const saved = JSON.parse(localStorage.getItem(COMPENSATORY_LOCAL_KEY) || '{}');
+        const hours = Number(saved[name] || 0);
+        compensatoryStatus.textContent = hours ? 'Mostrando el saldo guardado en este navegador.' : '';
+        compensatoryStatus.style.color = 'var(--muted)';
+        renderCompensatoryBalance(hours, usedMinutes);
+      });
+    }
+
+    function saveCompensatoryBalance() {
       const name = monthlyEmployee.value.trim();
-      if (!name) return setStatus('Selecciona un funcionario para guardar sus horas adeudadas.');
-      const amount = Math.max(0, Number(debtHours.value) || 0);
-      if (amount) employeeDebts[name] = amount; else delete employeeDebts[name];
-      localStorage.setItem(DEBT_KEY, JSON.stringify(employeeDebts));
-      debtStatus.textContent = 'Horas adeudadas guardadas para ' + name + '.';
-      debtStatus.style.color = 'var(--accent-3)';
-      loadMonthlyDetail();
+      if (!name) return setStatus('Selecciona un funcionario para guardar sus horas compensatorias.');
+      const hours = Math.max(0, Number(compensatoryHours.value) || 0);
+      saveCompensatoryBtn.disabled = true;
+      callBackend('saveCompensatoryHours', [name, hours], result => {
+        saveCompensatoryBtn.disabled = false;
+        compensatoryStatus.textContent = result.message || 'Horas compensatorias guardadas.';
+        compensatoryStatus.style.color = 'var(--accent-3)';
+        loadMonthlyDetail();
+      }, err => {
+        saveCompensatoryBtn.disabled = false;
+        const saved = JSON.parse(localStorage.getItem(COMPENSATORY_LOCAL_KEY) || '{}');
+        if (hours) saved[name] = hours; else delete saved[name];
+        localStorage.setItem(COMPENSATORY_LOCAL_KEY, JSON.stringify(saved));
+        compensatoryStatus.textContent = 'Guardado en este navegador. Para compartirlo entre computadores hay que actualizar Apps Script.';
+        compensatoryStatus.style.color = 'var(--accent-2)';
+        loadMonthlyDetail();
+      });
+    }
+
+    function renderTimeRanking(result) {
+      const data = result || { totalHours: '0h 0m', totalExits: 0, ranking: [] };
+      timeAllHours.textContent = data.totalHours || '0h 0m';
+      timeAllExits.textContent = String(data.totalExits || 0);
+      timeRankingBody.innerHTML = data.ranking && data.ranking.length
+        ? data.ranking.map((item, index) => `<tr><td>${index + 1}</td><td>${item.funcionario}</td><td>${item.exits}</td><td>${item.totalHours}</td></tr>`).join('')
+        : '<tr><td colspan="4">No hay registros para este mes.</td></tr>';
+    }
+
+    function loadMonthlyTotals(month) {
+      callBackend('getMonthlyRanking', [month], result => renderMonthlyTotals(result), () => loadLocalRecords(records => { localRecords = records; renderMonthlyTotals(localMonthlyRanking(month)); }, () => renderMonthlyTotals(null)));
+    }
+
+    function loadTimeRanking() {
+      const month = timeMonth.value || latestLocalMonth() || fecha.value.slice(0, 7);
+      timeMonth.value = month;
+      callBackend('getMonthlyRanking', [month], result => renderTimeRanking(result), () => loadLocalRecords(records => { localRecords = records; renderTimeRanking(localMonthlyRanking(month)); }, () => renderTimeRanking(null)));
+    }
+
+    function displayTime(value) {
+      const text = String(value || '');
+      const iso = text.match(/T(\d{2}):(\d{2})/);
+      return iso ? `${iso[1]}:${iso[2]}` : text.slice(0, 5);
+    }
+
+    function pairRecords(items) {
+      const rows = [];
+      let pending = null;
+      (items || []).forEach(item => {
+        const type = String(item.tipo || '').toLowerCase();
+        if (type === 'salida' || type === 'salida final') {
+          if (pending) rows.push(pending);
+          pending = { fecha: item.fecha || '', salida: displayTime(item.hora), regreso: '', motivo: item.motivo || '' };
+        } else if (type === 'regreso' && pending && pending.fecha === (item.fecha || '') && !pending.regreso) {
+          pending.regreso = displayTime(item.hora);
+          rows.push(pending);
+          pending = null;
+        } else if (type === 'entrada') {
+          rows.push({ fecha: item.fecha || '', salida: '', regreso: displayTime(item.hora), motivo: item.motivo || '' });
+        }
+      });
+      if (pending) rows.push(pending);
+      return rows;
+    }
+
+    function renderPairedRows(items) {
+      return pairRecords(items).map(row => `<tr><td>${row.fecha}</td><td>${row.salida || '-'}</td><td>${row.regreso || '-'}</td><td>${row.motivo}</td></tr>`).join('');
+    }
+
+    function setReportData(name, month, result) {
+      currentMonthlyReport = { name, month, items: pairRecords(result.items || []), summary: result.summary || {} };
+      downloadReportBtn.disabled = !currentMonthlyReport.items.length;
+    }
+
+    function csvCell(value) {
+      return `"${String(value ?? '').replace(/"/g, '""')}"`;
+    }
+
+    function downloadReport() {
+      if (!currentMonthlyReport) return;
+      const report = currentMonthlyReport;
+      const lines = [
+        ['Reporte de salidas y regresos', ''],
+        ['Funcionario', report.name],
+        ['Período', report.month],
+        ['Número de salidas', report.summary.exits || 0],
+        ['Tiempo total fuera', report.summary.totalHours || '0h 0m'],
+        [],
+        ['Fecha', 'Hora salida', 'Hora regreso', 'Motivo'],
+        ...report.items.map(row => [row.fecha, row.salida || '', row.regreso || '', row.motivo])
+      ];
+      const csv = '\uFEFF' + lines.map(row => row.map(csvCell).join(';')).join('\r\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `reporte-${report.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${report.month}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function setMonthlySearching(searching) {
+      searchMonthlyBtn.disabled = searching;
+      searchMonthlyBtn.textContent = searching ? 'Buscando...' : 'Buscar registro mensual';
+      if (searching) setStatus('Buscando registros...');
+    }
+
+    function callBackend(action, params, success, failure) {
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        return google.script.run.withSuccessHandler(success).withFailureHandler(failure)[action](...(params || []));
+      }
+      if (!GOOGLE_SHEETS_API_URL) {
+        failure(new Error('Falta configurar la URL de Google Apps Script.'));
+        return;
+      }
+      const callbackName = `sheetsCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const query = new URLSearchParams({ action, callback: callbackName });
+      const keys = action === 'getEmployees' ? [] : action === 'addEmployee' ? ['name'] : action === 'getCompensatoryHours'
+        ? ['funcionario'] : action === 'saveCompensatoryHours' ? ['funcionario', 'hours'] : action === 'savePairedRecord'
+        ? ['funcionario', 'fecha', 'salidaHora', 'regresoHora', 'motivo'] : action === 'getMonthlyRanking' ? ['value'] : ['funcionario', 'mode', 'value'];
+      (params || []).forEach((value, index) => query.set(keys[index], value ?? ''));
+      const script = document.createElement('script');
+      window[callbackName] = data => {
+        delete window[callbackName];
+        script.remove();
+        if (data && data.error) failure(new Error(data.error)); else success(data);
+      };
+      script.onerror = () => {
+        delete window[callbackName];
+        script.remove();
+        failure(new Error('No se pudo conectar con Google Sheets.'));
+      };
+      script.src = `${GOOGLE_SHEETS_API_URL}?${query.toString()}`;
+      document.head.appendChild(script);
     }
 
     function fillEmployees(list) {
@@ -682,28 +963,35 @@
     }
 
     function showScreen(screen) {
-      [mainScreen, addEmployeeScreen, monthlyScreen, detailScreen].forEach(el => el.classList.remove('active'));
+      [mainScreen, addEmployeeScreen, monthlyScreen, detailScreen, timeScreen].forEach(el => el.classList.remove('active'));
       screen.classList.add('active');
     }
 
     goMainBtn.addEventListener('click', () => showScreen(mainScreen));
     goAddBtn.addEventListener('click', () => showScreen(addEmployeeScreen));
     goMonthlyBtn.addEventListener('click', () => showScreen(monthlyScreen));
+    goTimeBtn.addEventListener('click', () => { showScreen(timeScreen); loadTimeRanking(); });
     logoutBtn.addEventListener('click', logout);
 
     function loadEmployees() {
       const dbIndicator = document.getElementById('dbIndicator');
-      dbIndicator.textContent = 'Conectando con Google Sheets...';
-      google.script.run
-        .withSuccessHandler(list => {
+      dbIndicator.classList.add('disconnected');
+      dbIndicator.innerHTML = '<span class="db-dot"></span>Conectando con Google Sheets...';
+      callBackend('getEmployees', [], list => {
+          if (!Array.isArray(list) || !list.length) {
+            return loadLocalRecords(records => fillEmployees([...new Set(records.map(row => row.funcionario).filter(Boolean))].sort()), () => {});
+          }
           fillEmployees(list);
+          dbIndicator.classList.remove('disconnected');
           dbIndicator.innerHTML = '<span class="db-dot"></span>Conectado con Google Sheets';
-        })
-        .withFailureHandler(err => {
-          setStatus(err.message || String(err));
+        }, err => {
+          dbIndicator.classList.add('disconnected');
           dbIndicator.innerHTML = '<span class="db-dot" style="background:#a33b3b; box-shadow:0 0 0 4px rgba(163,59,59,.16);"></span>Sin conexión';
-        })
-        .getEmployees();
+          loadLocalRecords(records => {
+            fillEmployees([...new Set(records.map(row => row.funcionario).filter(Boolean))].sort());
+            setStatus('Google Sheets no disponible. Mostrando registros históricos del Excel.');
+          }, () => setStatus(err.message || String(err)));
+        });
     }
 
     showPasswordCheck.addEventListener('change', () => {
@@ -718,36 +1006,38 @@
     form.addEventListener('submit', e => {
       e.preventDefault();
       setStatus('Guardando...');
-      google.script.run
-        .withSuccessHandler(res => {
+      callBackend('savePairedRecord', [
+        searchFuncionario.value,
+        fecha.value,
+        salidaHora.value,
+        entradaHora.value,
+        document.getElementById('motivo').value
+      ], res => {
           setStatus(res.message || 'Registro guardado exitosamente.');
+          showSuccess('Hecho: registro guardado exitosamente');
           form.reset();
           fecha.value = today.toISOString().slice(0, 10);
           salidaHora.value = new Date().toTimeString().slice(0, 5);
           entradaHora.value = new Date().toTimeString().slice(0, 5);
-        })
-        .withFailureHandler(err => setStatus(err.message || String(err)))
-        .savePairedRecord({
-          funcionario: searchFuncionario.value,
-          fecha: fecha.value,
-          salidaHora: salidaHora.value,
-          regresoHora: entradaHora.value,
-          motivo: document.getElementById('motivo').value
-        });
+        }, err => loadLocalRecords(() => {
+          const res = localEmployeeDetail(searchFuncionario.value, detailMode.value, detailValue.value);
+          detailEntries.textContent = String(res.summary.entries);
+          detailExits.textContent = String(res.summary.exits);
+          detailReturns.textContent = String(res.summary.returns);
+          detailHours.textContent = res.summary.totalHours;
+           detailBody.innerHTML = res.items.length ? renderPairedRows(res.items) : '<tr><td colspan="5">No hay registros para este período.</td></tr>';
+        }, () => setStatus(err.message || String(err))));
     });
 
     addEmployeeBtn.addEventListener('click', () => {
       const name = newEmployee.value.trim();
       if (!name) return setStatus('Escribe el nombre del funcionario.');
       setStatus('Agregando funcionario...');
-      google.script.run
-        .withSuccessHandler(res => {
+      callBackend('addEmployee', [name], res => {
           setStatus(res.message || 'Funcionario agregado');
           newEmployee.value = '';
           loadEmployees();
-        })
-        .withFailureHandler(err => setStatus(err.message || String(err)))
-        .addEmployee(name);
+        }, err => setStatus(err.message || String(err)));
     });
 
     function loadDetail() {
@@ -757,76 +1047,88 @@
       detailSubtitle.textContent = detailMode.value === 'day'
         ? `Detalle del día ${detailValue.value}`
         : `Detalle del mes ${detailValue.value}`;
-      google.script.run
-        .withSuccessHandler(res => {
+      callBackend('getEmployeeDetail', [name, detailMode.value, detailValue.value], res => {
           const s = res.summary || {};
           detailEntries.textContent = String(s.entries || 0);
           detailExits.textContent = String(s.exits || 0);
           detailReturns.textContent = String(s.returns || 0);
           detailHours.textContent = s.totalHours || '0h 0m';
-          renderDebtBalance(name, parseHours(s.totalHours));
           const items = res.items || [];
           if (!items.length) {
-            detailBody.innerHTML = '<tr><td colspan="4">No hay registros para este período.</td></tr>';
+            detailBody.innerHTML = '<tr><td colspan="5">No hay registros para este período.</td></tr>';
             return;
           }
-          detailBody.innerHTML = items.map(item => `
-            <tr>
-              <td>${item.fecha || ''}</td>
-              <td>${item.hora || ''}</td>
-              <td>${item.tipo || ''}</td>
-              <td>${item.motivo || ''}</td>
-            </tr>
-          `).join('');
-        })
-        .withFailureHandler(err => setStatus(err.message || String(err)))
-        .getEmployeeDetail(name, detailMode.value, detailValue.value);
+          detailBody.innerHTML = renderPairedRows(items);
+        }, err => loadLocalRecords(() => {
+          const res = localEmployeeDetail(searchFuncionario.value, detailMode.value, detailValue.value);
+          detailEntries.textContent = String(res.summary.entries);
+          detailExits.textContent = String(res.summary.exits);
+          detailReturns.textContent = String(res.summary.returns);
+          detailHours.textContent = res.summary.totalHours;
+          detailBody.innerHTML = res.items.length ? renderPairedRows(res.items) : '<tr><td colspan="5">No hay registros para este período.</td></tr>';
+        }, () => setStatus(err.message || String(err))));
     }
 
     function loadMonthlyDetail() {
       const name = monthlyEmployee.value.trim();
       if (!name) return setStatus('Escribe un funcionario para buscar el registro mensual.');
-      monthlyValue.value = monthlyValue.value || fecha.value.slice(0, 7);
-      google.script.run
-        .withSuccessHandler(res => {
+      setMonthlySearching(true);
+      monthlyValue.value = monthlyValue.value || latestLocalMonth() || fecha.value.slice(0, 7);
+      loadMonthlyTotals(monthlyValue.value);
+      callBackend('getEmployeeDetail', [name, 'month', monthlyValue.value], res => {
+          setMonthlySearching(false);
+          if (!res || !res.items || !res.items.length) {
+            return loadLocalRecords(() => {
+              const local = localEmployeeDetail(monthlyEmployee.value, 'month', monthlyValue.value);
+              setReportData(monthlyEmployee.value, monthlyValue.value, local);
+              detailEntries.textContent = String(local.summary.entries);
+              detailExits.textContent = String(local.summary.exits);
+              detailReturns.textContent = String(local.summary.returns);
+              detailHours.textContent = local.summary.totalHours;
+              loadCompensatoryBalance(name, local.summary.totalMinutes);
+              monthlyDetailBody.innerHTML = local.items.length ? renderPairedRows(local.items) : '<tr><td colspan="5">No hay registros para este período.</td></tr>';
+            }, () => {});
+          }
           const s = res.summary || {};
+          setReportData(monthlyEmployee.value, monthlyValue.value, res);
           detailEntries.textContent = String(s.entries || 0);
           detailExits.textContent = String(s.exits || 0);
           detailReturns.textContent = String(s.returns || 0);
           detailHours.textContent = s.totalHours || '0h 0m';
+          loadCompensatoryBalance(name, s.totalMinutes || 0);
           const items = res.items || [];
           if (!items.length) {
-            monthlyDetailBody.innerHTML = '<tr><td colspan="4">No hay registros para este período.</td></tr>';
+            monthlyDetailBody.innerHTML = '<tr><td colspan="5">No hay registros para este período.</td></tr>';
             return;
           }
-          monthlyDetailBody.innerHTML = items.map(item => `
-            <tr>
-              <td>${item.fecha || ''}</td>
-              <td>${item.hora || ''}</td>
-              <td>${item.tipo || ''}</td>
-              <td>${item.motivo || ''}</td>
-            </tr>
-          `).join('');
-        })
-        .withFailureHandler(err => setStatus(err.message || String(err)))
-        .getEmployeeDetail(name, 'month', monthlyValue.value);
+          monthlyDetailBody.innerHTML = renderPairedRows(items);
+        }, err => loadLocalRecords(() => {
+          setMonthlySearching(false);
+          const res = localEmployeeDetail(monthlyEmployee.value, 'month', monthlyValue.value);
+          setReportData(monthlyEmployee.value, monthlyValue.value, res);
+          detailEntries.textContent = String(res.summary.entries);
+          detailExits.textContent = String(res.summary.exits);
+          detailReturns.textContent = String(res.summary.returns);
+          detailHours.textContent = res.summary.totalHours;
+          loadCompensatoryBalance(name, res.summary.totalMinutes);
+           monthlyDetailBody.innerHTML = res.items.length ? renderPairedRows(res.items) : '<tr><td colspan="5">No hay registros para este período.</td></tr>';
+        }, () => { setMonthlySearching(false); setStatus(err.message || String(err)); }));
     }
 
     searchMonthlyBtn.addEventListener('click', () => {
       showScreen(monthlyScreen);
       loadMonthlyDetail();
     });
-    saveDebtBtn.addEventListener('click', saveEmployeeDebt);
+    downloadReportBtn.addEventListener('click', downloadReport);
+    saveCompensatoryBtn.addEventListener('click', saveCompensatoryBalance);
     backMonthlyBtn.addEventListener('click', () => showScreen(mainScreen));
+    backTimeBtn.addEventListener('click', () => showScreen(mainScreen));
     backBtn.addEventListener('click', () => showScreen(mainScreen));
-    runDetailBtn.addEventListener('click', loadDetail);
     detailMode.addEventListener('change', () => {
       detailValue.value = detailMode.value === 'day' ? fecha.value : fecha.value.slice(0, 7);
     });
-    monthlyEmployee.addEventListener('change', () => {
-      renderDebtBalance(monthlyEmployee.value.trim(), 0);
-      loadMonthlyDetail();
-    });
+    monthlyEmployee.addEventListener('change', loadMonthlyDetail);
+    searchTimeBtn.addEventListener('click', loadTimeRanking);
 
     loadEmployees();
 
