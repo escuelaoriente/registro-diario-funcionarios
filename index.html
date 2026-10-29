@@ -418,8 +418,9 @@
       <div class="row" style="margin-bottom: 14px;">
         <div>
           <label for="monthlyEmployee">Funcionario</label>
-          <input id="monthlyEmployee" type="text" list="employeeListMonthly" placeholder="Escribe el nombre..." />
-          <datalist id="employeeListMonthly"></datalist>
+          <select id="monthlyEmployee">
+            <option value="">Selecciona un funcionario...</option>
+          </select>
         </div>
         <div>
           <label for="monthlyValue">Mes</label>
@@ -673,9 +674,11 @@
 
     function fillEmployees(list) {
       employeeList.innerHTML = list.map(name => `<option value="${name}"></option>`).join('');
-      employeeListMonthly.innerHTML = list.map(name => `<option value="${name}"></option>`).join('');
+      monthlyEmployee.innerHTML = '<option value="">Selecciona un funcionario...</option>' + list
+        .map(name => `<option value="${name}">${name}</option>`)
+        .join('');
       if (!searchFuncionario.value) searchFuncionario.value = list[0] || '';
-      if (!monthlyEmployee.value) monthlyEmployee.value = list[0] || '';
+      if (list.length && !monthlyEmployee.value) monthlyEmployee.value = list[0];
     }
 
     function showScreen(screen) {
