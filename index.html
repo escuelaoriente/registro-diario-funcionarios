@@ -145,6 +145,13 @@
     th { font-size: 13px; text-transform: uppercase; letter-spacing:.04em; color: var(--accent); }
     .status { margin-top: 12px; font-weight: 700; color: var(--accent-3); }
     .hint { color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .balance-panel { margin-top: 14px; background: linear-gradient(135deg, rgba(22,63,118,.08), rgba(31,110,74,.08), rgba(184,134,20,.10)); }
+    .balance-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:14px; }
+    .balance-box { padding:12px; border-radius:14px; background:white; border:1px solid var(--line); text-align:center; }
+    .balance-box .value { display:block; font-size:22px; font-weight:800; color:var(--accent); }
+    .balance-box .label { display:block; margin-top:4px; color:var(--muted); font-size:12px; }
+    .balance-positive { color:#1f6e4a !important; }
+    .balance-negative { color:#a33b3b !important; }
     .quickbar {
       display: grid;
       grid-template-columns: 1.3fr .8fr .8fr .8fr;
@@ -422,6 +429,25 @@
       <div class="actions" style="margin-top:0;">
         <button type="button" id="searchMonthlyBtn">Buscar registro mensual</button>
       </div>
+      <div class="card balance-panel">
+        <h3 style="margin:0 0 8px;">Horas adeudadas y saldo</h3>
+        <p class="hint" style="margin:0 0 10px;">Ingresa las horas que se le deben al funcionario. Se descontarán automáticamente de sus horas utilizadas en salidas.</p>
+        <div class="row">
+          <div>
+            <label for="debtHours">Horas que se le deben</label>
+            <input id="debtHours" type="number" min="0" step="0.25" value="0" />
+          </div>
+          <div style="align-self:end;">
+            <button type="button" id="saveDebtBtn">Guardar horas adeudadas</button>
+          </div>
+        </div>
+        <div id="debtStatus" class="status"></div>
+        <div class="balance-grid">
+          <div class="balance-box"><span class="value" id="debtTotal">0,00 h</span><span class="label">Horas adeudadas</span></div>
+          <div class="balance-box"><span class="value" id="usedExitHours">0,00 h</span><span class="label">Horas usadas en salidas</span></div>
+          <div class="balance-box"><span class="value" id="remainingBalance">+0,00 h</span><span class="label">Saldo</span></div>
+        </div>
+      </div>
       <div class="detail-grid" style="margin-top:14px;">
         <div class="box"><div class="value" id="detailEntries">0</div><div class="label">Entradas</div></div>
         <div class="box"><div class="value" id="detailExits">0</div><div class="label">Salidas</div></div>
@@ -524,6 +550,12 @@
     const monthlyValue = document.getElementById('monthlyValue');
     const searchMonthlyBtn = document.getElementById('searchMonthlyBtn');
     const monthlyDetailBody = document.getElementById('monthlyDetailBody');
+    const debtHours = document.getElementById('debtHours');
+    const saveDebtBtn = document.getElementById('saveDebtBtn');
+    const debtStatus = document.getElementById('debtStatus');
+    const debtTotal = document.getElementById('debtTotal');
+    const usedExitHours = document.getElementById('usedExitHours');
+    const remainingBalance = document.getElementById('remainingBalance');
     const detailMode = document.getElementById('detailMode');
     const detailValue = document.getElementById('detailValue');
     const detailBody = document.getElementById('detailBody');
@@ -540,6 +572,8 @@
     const today = new Date();
     const AUTH_EMAIL = 'alejandra.rodriguez@escuelaoriente.cl';
     const AUTH_PASSWORD = 'oriente22380';
+    const DEBT_KEY = 'registro-funcionarios-horas-adeudadas-v1';
+    const employeeDebts = JSON.parse(localStorage.getItem(DEBT_KEY) || '{}');
     function getRememberedEmail() {
       return localStorage.getItem('nec_remembered_email') || '';
     }
@@ -594,6 +628,48 @@
     entradaHora.value = today.toTimeString().slice(0, 5);
 
     function setStatus(msg) { statusEl.textContent = msg; }
+
+    function formatHours(value, signed = false) {
+      const amount = Number(value) || 0;
+      const prefix = signed ? (amount >= 0 ? '+' : '') : '';
+      return prefix + amount.toFixed(2).replace('.', ',') + ' h';
+    }
+
+    function parseHours(value) {
+      const text = String(value || '');
+      const hourMinuteMatch = text.match(/(-?\d+)\s*h\s*(\d+)\s*m/i);
+      if (hourMinuteMatch) return Number(hourMinuteMatch[1]) + Number(hourMinuteMatch[2]) / 60;
+      const hoursMatch = text.match(/(-?\d+(?:[.,]\d+)?)\s*h/i);
+      if (hoursMatch) return Number(hoursMatch[1].replace(',', '.')) || 0;
+      return 0;
+    }
+
+    function getEmployeeDebt(name) {
+      return Math.max(0, Number(employeeDebts[String(name || '').trim()] || 0));
+    }
+
+    function renderDebtBalance(name, usedHours = 0) {
+      const debt = getEmployeeDebt(name);
+      const used = Math.max(0, Number(usedHours) || 0);
+      const balance = debt - used;
+      debtHours.value = debt;
+      debtTotal.textContent = formatHours(debt);
+      usedExitHours.textContent = formatHours(used);
+      remainingBalance.textContent = formatHours(balance, true);
+      remainingBalance.classList.toggle('balance-positive', balance >= 0);
+      remainingBalance.classList.toggle('balance-negative', balance < 0);
+    }
+
+    function saveEmployeeDebt() {
+      const name = monthlyEmployee.value.trim();
+      if (!name) return setStatus('Selecciona un funcionario para guardar sus horas adeudadas.');
+      const amount = Math.max(0, Number(debtHours.value) || 0);
+      if (amount) employeeDebts[name] = amount; else delete employeeDebts[name];
+      localStorage.setItem(DEBT_KEY, JSON.stringify(employeeDebts));
+      debtStatus.textContent = 'Horas adeudadas guardadas para ' + name + '.';
+      debtStatus.style.color = 'var(--accent-3)';
+      loadMonthlyDetail();
+    }
 
     function fillEmployees(list) {
       employeeList.innerHTML = list.map(name => `<option value="${name}"></option>`).join('');
@@ -685,6 +761,7 @@
           detailExits.textContent = String(s.exits || 0);
           detailReturns.textContent = String(s.returns || 0);
           detailHours.textContent = s.totalHours || '0h 0m';
+          renderDebtBalance(name, parseHours(s.totalHours));
           const items = res.items || [];
           if (!items.length) {
             detailBody.innerHTML = '<tr><td colspan="4">No hay registros para este período.</td></tr>';
@@ -736,13 +813,17 @@
       showScreen(monthlyScreen);
       loadMonthlyDetail();
     });
+    saveDebtBtn.addEventListener('click', saveEmployeeDebt);
     backMonthlyBtn.addEventListener('click', () => showScreen(mainScreen));
     backBtn.addEventListener('click', () => showScreen(mainScreen));
     runDetailBtn.addEventListener('click', loadDetail);
     detailMode.addEventListener('change', () => {
       detailValue.value = detailMode.value === 'day' ? fecha.value : fecha.value.slice(0, 7);
     });
-    monthlyEmployee.addEventListener('change', loadMonthlyDetail);
+    monthlyEmployee.addEventListener('change', () => {
+      renderDebtBalance(monthlyEmployee.value.trim(), 0);
+      loadMonthlyDetail();
+    });
 
     loadEmployees();
 
