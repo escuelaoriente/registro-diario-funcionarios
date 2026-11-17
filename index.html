@@ -365,6 +365,7 @@
       <button type="button" class="secondary" id="goAddBtn">Agregar nuevo funcionario</button>
       <button type="button" class="secondary" id="goMonthlyBtn">Registro mensuales</button>
       <button type="button" class="secondary" id="goTimeBtn">Tiempo de funcionarios</button>
+      <button type="button" class="secondary" id="goDateBtn">Registro por fecha</button>
     </nav>
 
     <section class="card screen active" id="mainScreen" style="margin-top:18px;">
@@ -403,6 +404,30 @@
         <div class="status" id="status"></div>
         <div class="toast" id="successToast" role="status" aria-live="polite">Registro guardado exitosamente</div>
       </form>
+    </section>
+
+    <section class="card screen" id="dateScreen" style="margin-top:18px;">
+      <div class="detail-hero">
+        <div>
+          <h2 style="margin:0;">Registro por fecha</h2>
+          <p class="hint" style="margin:4px 0 0;">Busca un día y revisa las salidas de todos los funcionarios.</p>
+        </div>
+        <div class="actions" style="margin:0;"><button type="button" class="secondary" id="backDateBtn">Volver</button></div>
+      </div>
+      <div class="row" style="margin:18px 0 14px;">
+        <div><label for="dateSearchValue">Fecha</label><input id="dateSearchValue" type="date" /></div>
+        <div style="align-self:end;"><button type="button" id="searchDateBtn">Mostrar registros del día</button></div>
+      </div>
+      <div class="detail-grid">
+        <div class="box"><div class="value" id="dateAllEmployees">0</div><div class="label">Funcionarios con salidas</div></div>
+        <div class="box"><div class="value" id="dateAllExits">0</div><div class="label">Salidas del día</div></div>
+        <div class="box"><div class="value" id="dateAllHours">0h 0m</div><div class="label">Tiempo total fuera</div></div>
+      </div>
+      <div class="detail-list" style="margin-top:14px;">
+        <table><thead><tr><th>Funcionario</th><th>Salida</th><th>Regreso</th><th>Motivo</th><th>Tiempo</th></tr></thead>
+          <tbody id="dateDetailBody"><tr><td colspan="5">Selecciona una fecha.</td></tr></tbody>
+        </table>
+      </div>
     </section>
 
     <section class="card screen" id="timeScreen" style="margin-top:18px;">
@@ -590,6 +615,7 @@
     const goAddBtn = document.getElementById('goAddBtn');
     const goMonthlyBtn = document.getElementById('goMonthlyBtn');
     const goTimeBtn = document.getElementById('goTimeBtn');
+    const goDateBtn = document.getElementById('goDateBtn');
     const logoutBtn = document.getElementById('logoutBtn');
     const fecha = document.getElementById('fecha');
     const salidaHora = document.getElementById('salidaHora');
@@ -624,6 +650,14 @@
     const monthlyAllHours = document.getElementById('monthlyAllHours');
     const monthlyAllExits = document.getElementById('monthlyAllExits');
     const timeScreen = document.getElementById('timeScreen');
+    const dateScreen = document.getElementById('dateScreen');
+    const dateSearchValue = document.getElementById('dateSearchValue');
+    const searchDateBtn = document.getElementById('searchDateBtn');
+    const dateDetailBody = document.getElementById('dateDetailBody');
+    const dateAllEmployees = document.getElementById('dateAllEmployees');
+    const dateAllExits = document.getElementById('dateAllExits');
+    const dateAllHours = document.getElementById('dateAllHours');
+    const backDateBtn = document.getElementById('backDateBtn');
     const timeMonth = document.getElementById('timeMonth');
     const searchTimeBtn = document.getElementById('searchTimeBtn');
     const timeAllHours = document.getElementById('timeAllHours');
@@ -882,6 +916,44 @@
       return rows;
     }
 
+    function renderDailyRecords(items, date) {
+      const groups = {};
+      (items || []).forEach(item => {
+        const name = String(item.funcionario || '').trim();
+        if (!name) return;
+        if (!groups[name]) groups[name] = [];
+        groups[name].push(item);
+      });
+      const rows = [];
+      let totalMinutes = 0, exits = 0;
+      Object.keys(groups).sort((a, b) => a.localeCompare(b, 'es')).forEach(name => {
+        pairRecords(groups[name]).forEach(row => {
+          const start = row.salida || '', end = row.regreso || '';
+          let minutes = 0;
+          if (start && end) {
+            const [sh, sm] = start.split(':').map(Number), [eh, em] = end.split(':').map(Number);
+            minutes = Math.max(0, (eh * 60 + em) - (sh * 60 + sm));
+          }
+          if (start) exits += 1;
+          totalMinutes += minutes;
+          rows.push(`<tr><td>${name}</td><td>${start || '-'}</td><td>${end || '-'}</td><td>${row.motivo || '-'}</td><td>${Math.floor(minutes / 60)}h ${minutes % 60}m</td></tr>`);
+        });
+      });
+      dateAllEmployees.textContent = String(Object.keys(groups).length);
+      dateAllExits.textContent = String(exits);
+      dateAllHours.textContent = `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`;
+      dateDetailBody.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="5">No hay registros para ${date || 'la fecha seleccionada'}.</td></tr>`;
+    }
+
+    function loadDailyRecords() {
+      const date = dateSearchValue.value;
+      if (!date) { dateDetailBody.innerHTML = '<tr><td colspan="5">Selecciona una fecha.</td></tr>'; return; }
+      callBackend('getDailyRecords', [date], result => renderDailyRecords(result, date), () => loadLocalRecords(records => {
+        localRecords = records;
+        renderDailyRecords(records.filter(row => String(row.fecha || '') === date), date);
+      }, () => renderDailyRecords([], date)));
+    }
+
     function renderPairedRows(items) {
       return pairRecords(items).map(row => `<tr><td>${row.fecha}</td><td>${row.salida || '-'}</td><td>${row.regreso || '-'}</td><td>${row.motivo}</td></tr>`).join('');
     }
@@ -934,7 +1006,7 @@
       }
       const callbackName = `sheetsCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       const query = new URLSearchParams({ action, callback: callbackName });
-      const keys = action === 'getEmployees' ? [] : action === 'addEmployee' ? ['name'] : action === 'getCompensatoryHours'
+      const keys = action === 'getEmployees' ? [] : action === 'addEmployee' ? ['name'] : action === 'getDailyRecords' ? ['fecha'] : action === 'getCompensatoryHours'
         ? ['funcionario'] : action === 'saveCompensatoryHours' ? ['funcionario', 'hours'] : action === 'savePairedRecord'
         ? ['funcionario', 'fecha', 'salidaHora', 'regresoHora', 'motivo'] : action === 'getMonthlyRanking' ? ['value'] : ['funcionario', 'mode', 'value'];
       (params || []).forEach((value, index) => query.set(keys[index], value ?? ''));
@@ -963,7 +1035,7 @@
     }
 
     function showScreen(screen) {
-      [mainScreen, addEmployeeScreen, monthlyScreen, detailScreen, timeScreen].forEach(el => el.classList.remove('active'));
+      [mainScreen, addEmployeeScreen, monthlyScreen, detailScreen, timeScreen, dateScreen].forEach(el => el.classList.remove('active'));
       screen.classList.add('active');
     }
 
@@ -971,6 +1043,7 @@
     goAddBtn.addEventListener('click', () => showScreen(addEmployeeScreen));
     goMonthlyBtn.addEventListener('click', () => showScreen(monthlyScreen));
     goTimeBtn.addEventListener('click', () => { showScreen(timeScreen); loadTimeRanking(); });
+    goDateBtn.addEventListener('click', () => { showScreen(dateScreen); dateSearchValue.value = dateSearchValue.value || fecha.value; loadDailyRecords(); });
     logoutBtn.addEventListener('click', logout);
 
     function loadEmployees() {
@@ -1129,6 +1202,8 @@
     });
     monthlyEmployee.addEventListener('change', loadMonthlyDetail);
     searchTimeBtn.addEventListener('click', loadTimeRanking);
+    searchDateBtn.addEventListener('click', loadDailyRecords);
+    backDateBtn.addEventListener('click', () => showScreen(mainScreen));
 
     loadEmployees();
 

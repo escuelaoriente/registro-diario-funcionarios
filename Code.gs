@@ -30,6 +30,7 @@ function apiResponse_(request) {
     motivo: p.motivo
   });
   else if (action === 'getEmployeeDetail') data = getEmployeeDetail(p.funcionario, p.mode, p.value);
+  else if (action === 'getDailyRecords') data = getDailyRecords(p.fecha);
   else if (action === 'getMonthlyRanking') data = getMonthlyRanking(p.value);
   else if (action === 'getAllRecords') data = getAllRecords();
   else throw new Error('Acción no reconocida.');
@@ -355,6 +356,16 @@ function getDailyRecordsByEmployee(funcionario, date) {
       motivo: row[5],
       usuario: row[6]
     }));
+}
+
+function getDailyRecords(date) {
+  const { sheet } = ensureDatabase_();
+  const targetDate = String(date || '').trim();
+  if (!targetDate || sheet.getLastRow() < 2) return [];
+  return sheet.getDataRange().getValues().slice(1)
+    .filter(row => dateText_(row[1]) === targetDate)
+    .sort((a, b) => String(a[3] || '').localeCompare(String(b[3] || ''), 'es') || timeToMinutes(a[2]) - timeToMinutes(b[2]))
+    .map(row => ({ fecha: dateText_(row[1]), hora: timeText_(row[2]), funcionario: row[3], tipo: row[4], motivo: row[5] }));
 }
 
 function getSummary(funcionario, date) {
